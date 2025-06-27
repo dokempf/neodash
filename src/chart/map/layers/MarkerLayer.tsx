@@ -7,6 +7,8 @@ import { Popup, Tooltip } from 'react-leaflet';
 import { Button, Typography } from '@neo4j-ndl/react';
 import { getRule } from '../../../extensions/advancedcharts/Utils';
 import { extensionEnabled } from '../../../utils/ReportUtils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faHeart } from '@fortawesome/free-solid-svg-icons'
 
 export function createMarkers(data, props) {
   const clusterMarkers = props.settings?.clusterMarkers ? props.settings.clusterMarkers : false;
@@ -139,7 +141,7 @@ export function createMarkers(data, props) {
           <div
             style={{ color: node.color, textAlign: 'center', marginTop: markerMarginTop, marginLeft: markerMarginLeft }}
           >
-            <MapPinIconSolid className={markerIconClass} />
+            <FontAwesomeIcon icon={faHeart} />
           </div>
         }
       >
