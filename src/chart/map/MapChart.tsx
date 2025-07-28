@@ -20,6 +20,20 @@ const NeoMapChart = (props: ChartPropsWithAdditionalElement) => {
   // Retrieve config from advanced settings
   console.log('Neo vmap chart polygon coordinates props: ', props.filterPolygonCoordinates)
   const layerType = props.settings && props.settings.layerType ? props.settings.layerType : 'markers';
+  const selectedIdsParameterName = props.settings && props.settings.selectedIdsParameterName ? props.settings.selectedIdsParameterName : 'IDS_SELECTED';
+
+  const resetSelectedIdsParameter = () => {
+    if (props.setGlobalParameter) {
+      props.setGlobalParameter(selectedIdsParameterName, '');
+      console.log(`Reset ${selectedIdsParameterName} parameter to empty string`);
+    }
+  };
+
+  React.useEffect(() => {
+    if (props.onResetParameterFunction) {
+      props.onResetParameterFunction(resetSelectedIdsParameter);
+    }
+  }, [selectedIdsParameterName]);
   const nodeColorProp = props.settings && props.settings.nodeColorProp ? props.settings.nodeColorProp : 'color';
   const defaultNodeSize = props.settings && props.settings.defaultNodeSize ? props.settings.defaultNodeSize : 'large';
   const relWidthProp = props.settings && props.settings.relWidthProp ? props.settings.relWidthProp : 'width';
@@ -186,13 +200,20 @@ const NeoMapChart = (props: ChartPropsWithAdditionalElement) => {
 
     // Update dashboard parameter
     if (props.setGlobalParameter) {
-      props.setGlobalParameter('IDS_SELECTED', selectedIds);
-      console.log('Updated IDS_SELECTED parameter:', selectedIds);
+      props.setGlobalParameter(selectedIdsParameterName, selectedIds);
+      console.log(`Updated ${selectedIdsParameterName} parameter:`, selectedIds);
     }
 
 
     return kept;
   }
+
+  // If no polygon coordinates, reset the parameter to show all data
+  React.useEffect(() => {
+    if (!props.filterPolygonCoordinates && props.setGlobalParameter) {
+      resetSelectedIdsParameter();
+    }
+  }, [props.filterPolygonCoordinates]);
 
 
   // TODO this should be in Utils.ts

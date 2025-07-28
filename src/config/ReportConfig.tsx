@@ -1279,6 +1279,11 @@ const _REPORT_TYPES = {
         values: [true, false],
         default: false,
       },
+      selectedIdsParameterName: {
+        label: 'Dashboard Parameter Name for Selected IDs',
+        type: SELECTION_TYPES.TEXT,
+        default: 'IDS_SELECTED',
+      },
     },
   },
   itinerary: {

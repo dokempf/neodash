@@ -34,6 +34,7 @@ type GeomanJsonPolygon = {
 export interface ChartPropsWithAdditionalElement extends ChartProps {
   additionalRenderElement: JSX.Element
   filterPolygonCoordinates: GeomanJsonPolygon | null
+  onResetParameterFunction?: (resetFn: () => void) => void // Optional callback to receive reset function
 }
 
 /**

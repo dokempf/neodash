@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ChartProps } from '../../chart/Chart';
-import { MapContainer, TileLayer, GeoJSON, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, Popup, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { extensionEnabled } from '../../utils/ReportUtils';
@@ -20,6 +20,10 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
     const [mapZoom, setMapZoom] = useState(6);
     const [personColors, setPersonColors] = useState({});
     const [selectedPerson, setSelectedPerson] = useState(null);
+    const [personWaypoints, setPersonWaypoints] = useState({}); // Store waypoints by person for sequencing
+    const [selectedRoute, setSelectedRoute] = useState(null); // Track selected route for showing dates
+    const [waypointSequence, setWaypointSequence] = useState({}); // Track waypoint order for each person
+    const [renderKey, setRenderKey] = useState(0); // Force re-render when route selection changes
 
     // Settings from props
     const mapProviderURL = props.settings?.providerUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -88,10 +92,16 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
 
             // Generate colors for all unique persons
             const newPersonColors = {};
+            const newPersonWaypoints = {};
+            const newWaypointSequence = {};
             Array.from(uniquePersons).forEach((personName, index) => {
                 newPersonColors[personName] = generateColor(index);
+                newPersonWaypoints[personName] = [];
+                newWaypointSequence[personName] = {};
             });
             setPersonColors(newPersonColors);
+            setPersonWaypoints(newPersonWaypoints);
+            setWaypointSequence(newWaypointSequence);
 
             props.records.forEach((record, recordIndex) => {
                 const keys = record.keys || [];
@@ -99,6 +109,38 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
 
                 // Helper function to process itinerary data
                 const processItinerary = (itinerary, personName) => {
+                    // First collect all waypoints for this person to determine sequence
+                    const waypoints = itinerary.features
+                        .filter(f => f.geometry.type === 'Point')
+                        .map(f => ({
+                            ...f,
+                            properties: {
+                                ...f.properties,
+                                person: personName
+                            }
+                        }))
+                        .sort((a, b) => {
+                            // Sort by date if available
+                            const dateA = a.properties.date_of_stop || a.properties.date || '';
+                            const dateB = b.properties.date_of_stop || b.properties.date || '';
+                            return dateA.localeCompare(dateB);
+                        });
+                    
+                    newPersonWaypoints[personName] = waypoints;
+                    
+                    // Create sequence mapping for this person's waypoints
+                    waypoints.forEach((waypoint, index) => {
+                        const key = `${waypoint.geometry.coordinates[0]}_${waypoint.geometry.coordinates[1]}`;
+                        const sequenceInfo = {
+                            index: index,
+                            total: waypoints.length,
+                            isFirst: index === 0,
+                            isLast: index === waypoints.length - 1,
+                            waypoint: waypoint
+                        };
+                        newWaypointSequence[personName][key] = sequenceInfo;
+                    });
+
                     itinerary.features.forEach((feature, featureIndex) => {
                         if (feature.type === 'Feature') {
 
@@ -230,31 +272,53 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
         const personColor = getPersonColor(personName);
         
         // Determine if this person is selected or should be faded
-        const isSelected = !selectedPerson || selectedPerson === personName;
+        const isSelected = !selectedRoute || selectedRoute === personName;
         const baseOpacity = isSelected ? 1.0 : 0.1;
+        
+        // Check if this route is selected for date display
+        const isRouteSelected = selectedRoute === personName;
+        const routeOpacity = isRouteSelected ? 1.0 : (isSelected ? 0.8 : 0.1);
 
         if (geometry.type === 'LineString' && showRoutes) {
             return {
                 color: personColor,
-                weight: routeWeight,
-                opacity: 0.8 * baseOpacity
+                weight: isRouteSelected ? routeWeight + 2 : routeWeight,
+                opacity: routeOpacity
             };
         }
 
         if (geometry.type === 'Point' && showWaypoints) {
-            // Use person color but with slight variations for different stop types
-            let color = personColor;
-            let fillOpacity = 0.8;
-            let radius = 6;
+            // Get waypoint sequence info
+            const key = `${geometry.coordinates[0]}_${geometry.coordinates[1]}`;
+            const sequenceInfo = waypointSequence[personName] && waypointSequence[personName][key];
             
-            if (properties.type_of_stop === 'origin') {
-                // Origin points are larger and more opaque
-                radius = 8;
-                fillOpacity = 1.0;
-            } else if (properties.type_of_stop === 'residence') {
-                // Residence points are square-ish (simulated with higher weight border)
-                radius = 7;
-                fillOpacity = 0.9;
+            let radius = 4; // Made smaller
+            let fillOpacity = 0.8;
+            let weight = 2;
+            
+            // Only show custom styling when route is selected
+            if (selectedRoute === personName && sequenceInfo) {
+                if (sequenceInfo.isFirst) {
+                    // First waypoint: filled circle (start)
+                    fillOpacity = 1.0;
+                    radius = 6; // Made smaller
+                    weight = 3;
+                } else if (sequenceInfo.isLast) {
+                    // Last waypoint: filled circle (end)
+                    fillOpacity = 1.0;
+                    radius = 6; // Made smaller 
+                    weight = 3;
+                } else {
+                    // Middle waypoints: outlined circle only
+                    fillOpacity = 0;
+                    radius = 4; // Made smaller
+                    weight = 2;
+                }
+            } else {
+                // Default circle when route not selected
+                fillOpacity = 0.8;
+                radius = 4; // Made smaller
+                weight = 2;
             }
 
             return {
@@ -263,7 +327,7 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
                 fillOpacity: fillOpacity * baseOpacity,
                 opacity: baseOpacity,
                 radius: radius,
-                weight: 2
+                weight: weight
             };
         }
 
@@ -284,14 +348,20 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
       `;
             layer.bindPopup(popupContent);
             
-            // Add click handler for person selection
+            // Add click handler for person selection and route date display
             layer.on('click', (e) => {
                 const personName = feature.properties.person || 'Unknown';
-                // Toggle selection: if clicking on already selected person, deselect
-                if (selectedPerson === personName) {
-                    setSelectedPerson(null);
-                } else {
-                    setSelectedPerson(personName);
+                
+                // Both route lines AND waypoint dots should show/hide route dates
+                if (feature.geometry.type === 'LineString' || feature.geometry.type === 'Point') {
+                    // Route or waypoint clicked - toggle date display for this person's waypoints
+                    if (selectedRoute === personName) {
+                        setSelectedRoute(null);
+                    } else {
+                        setSelectedRoute(personName);
+                    }
+                    // Force re-render to clear previous route's custom icons
+                    setRenderKey(prev => prev + 1);
                 }
                 // Stop event propagation to prevent map click
                 e.originalEvent.stopPropagation();
@@ -302,6 +372,14 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
     const pointToLayer = (feature, latlng) => {
         if (feature.geometry.type === 'Point') {
             const style = getFeatureStyle(feature);
+            const personName = feature.properties.person || 'Unknown';
+            const personColor = getPersonColor(personName);
+            
+            // Get waypoint sequence info
+            const key = `${feature.geometry.coordinates[0]}_${feature.geometry.coordinates[1]}`;
+            const sequenceInfo = waypointSequence[personName] && waypointSequence[personName][key];
+            
+            // Always use circle markers now - X will be shown in date labels instead
             return L.circleMarker(latlng, style);
         }
     };
@@ -364,6 +442,8 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
                     click: () => {
                         // Clicking on empty map space deselects all
                         setSelectedPerson(null);
+                        setSelectedRoute(null);
+                        setRenderKey(prev => prev + 1);
                     }
                 }}
             >
@@ -378,9 +458,90 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
                         style={getFeatureStyle}
                         onEachFeature={onEachFeature}
                         pointToLayer={pointToLayer}
-                        key={`${JSON.stringify(geoJsonData)}-${selectedPerson}`}
+                        key={`geoJson-${selectedPerson || 'none'}-${selectedRoute || 'none'}-${renderKey}`}
                     />
                 )}
+                
+                {/* Display date labels when a route is selected */}
+                {selectedRoute && personWaypoints[selectedRoute] && 
+                    personWaypoints[selectedRoute].map((waypoint, index) => {
+                        const coords = waypoint.geometry.coordinates;
+                        const date = waypoint.properties.date_of_stop || waypoint.properties.date || '';
+                        
+                        // Extract year and month from date string and add appropriate prefix
+                        let displayDate = '';
+                        
+                        // Get waypoint sequence info for this point
+                        const key = `${coords[0]}_${coords[1]}`;
+                        const sequenceInfo = waypointSequence[selectedRoute] && waypointSequence[selectedRoute][key];
+                        
+                        if (date) {
+                            const match = date.match(/(\d{4})-(\d{2})/);
+                            if (match) {
+                                const year = match[1];
+                                const month = match[2];
+                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                const monthName = monthNames[parseInt(month) - 1] || month;
+                                
+                                if (sequenceInfo) {
+                                    if (sequenceInfo.isFirst) {
+                                        displayDate = `🟢 ${monthName} ${year}`; // Green circle for start
+                                    } else if (sequenceInfo.isLast) {
+                                        displayDate = `🏁 ${monthName} ${year}`; // Finishing flag for end
+                                    } else {
+                                        displayDate = `${monthName} ${year}`; // Plain for middle
+                                    }
+                                } else {
+                                    displayDate = `${monthName} ${year}`;
+                                }
+                            } else {
+                                displayDate = date;
+                            }
+                        } else {
+                            // No date available - handle origin case
+                            if (sequenceInfo && sequenceInfo.isFirst) {
+                                displayDate = `🟢 Origin`; // Green circle for origin
+                            } else if (sequenceInfo && sequenceInfo.isLast) {
+                                displayDate = `🏁 Destination`; // Finishing flag for destination
+                            } else {
+                                displayDate = `Waypoint`; // Plain for middle
+                            }
+                        }
+                        
+                        if (displayDate && coords && coords[0] !== null && coords[1] !== null) {
+                                // Create a custom DivIcon for the date label
+                            const dateIcon = L.divIcon({
+                                html: `<div style="
+                                    background-color: rgba(255, 255, 255, 0.95);
+                                    padding: 3px 8px;
+                                    border-radius: 4px;
+                                    font-size: 11px;
+                                    font-weight: bold;
+                                    color: black;
+                                    border: 1px solid ${getPersonColor(selectedRoute)};
+                                    white-space: nowrap;
+                                    min-width: 95px;
+                                    text-align: center;
+                                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                ">${displayDate}</div>`,
+                                className: 'date-label-marker',
+                                iconSize: [120, 20],
+                                iconAnchor: [-20, 10]
+                            });
+                            
+                            
+                            return (
+                                <Marker
+                                    key={`date-${selectedRoute}-${index}`}
+                                    position={[coords[1], coords[0]]}
+                                    icon={dateIcon}
+                                />
+                            );
+                        }
+                        return null;
+                    })
+                }
             </MapContainer>
         </div>
     );
