@@ -432,7 +432,40 @@ const NeoItineraryMapChart: React.FC<ChartProps> = (props) => {
     }
 
     return (
-        <div style={{ height: '100%', width: '100%' }}>
+        <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+            {/* Legend - only show when a route is selected */}
+            {selectedRoute && (
+                <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    zIndex: 1000,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    padding: '10px 15px',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                    border: `2px solid ${getPersonColor(selectedRoute)}`,
+                    minWidth: '150px'
+                }}>
+                    <div style={{
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: getPersonColor(selectedRoute),
+                        marginBottom: '5px',
+                        textAlign: 'center'
+                    }}>
+                        Active Route
+                    </div>
+                    <div style={{
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: '#333',
+                        textAlign: 'center'
+                    }}>
+                        {selectedRoute}
+                    </div>
+                </div>
+            )}
             <MapContainer
                 center={mapCenter}
                 zoom={mapZoom}
