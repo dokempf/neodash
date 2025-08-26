@@ -139,7 +139,7 @@ export function createMarkers(data, props) {
           <div
             style={{ color: node.color, textAlign: 'center', marginTop: markerMarginTop, marginLeft: markerMarginLeft }}
           >
-            <i className={`fa fa-${node.properties.icon || 'heart'} ${markerIconClass}`} />
+            <i className={`fa fa-${node.properties.icon || 'location-dot'} ${markerIconClass}`} />
           </div>
         }
       >
