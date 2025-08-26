@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ChartProps } from '../Chart';
+import { ChartProps, ChartPropsWithAdditionalElement } from '../Chart';
 import { categoricalColorSchemes } from '../../config/ColorConfig';
 import { valueIsArray, valueIsNode, valueIsRelationship, valueIsPath, valueIsObject } from '../../chart/ChartUtils';
 import { MapContainer, TileLayer } from 'react-leaflet';
@@ -9,15 +9,31 @@ import { createHeatmap } from './layers/HeatmapLayer';
 import { createMarkers } from './layers/MarkerLayer';
 import { createLines } from './layers/LineLayer';
 import { extensionEnabled } from '../../utils/ReportUtils';
+import * as turf from '@turf/turf'
 
 const update = (state, mutations) => Object.assign({}, state, mutations);
 
 /**
  * Renders Neo4j records as their JSON representation.
  */
-const NeoMapChart = (props: ChartProps) => {
+const NeoMapChart = (props: ChartPropsWithAdditionalElement) => {
   // Retrieve config from advanced settings
+  console.log('Neo vmap chart polygon coordinates props: ', props.filterPolygonCoordinates)
   const layerType = props.settings && props.settings.layerType ? props.settings.layerType : 'markers';
+  const selectedIdsParameterName = props.settings && props.settings.selectedIdsParameterName ? props.settings.selectedIdsParameterName : 'IDS_SELECTED';
+
+  const resetSelectedIdsParameter = () => {
+    if (props.setGlobalParameter) {
+      props.setGlobalParameter(selectedIdsParameterName, '');
+      console.log(`Reset ${selectedIdsParameterName} parameter to empty string`);
+    }
+  };
+
+  React.useEffect(() => {
+    if (props.onResetParameterFunction) {
+      props.onResetParameterFunction(resetSelectedIdsParameter);
+    }
+  }, [selectedIdsParameterName]);
   const nodeColorProp = props.settings && props.settings.nodeColorProp ? props.settings.nodeColorProp : 'color';
   const defaultNodeSize = props.settings && props.settings.defaultNodeSize ? props.settings.defaultNodeSize : 'large';
   const relWidthProp = props.settings && props.settings.relWidthProp ? props.settings.relWidthProp : 'width';
@@ -59,7 +75,7 @@ const NeoMapChart = (props: ChartProps) => {
 
   useEffect(() => {
     buildVisualizationDictionaryFromRecords(props.records);
-  }, []);
+  }, [props.filterPolygonCoordinates]);
 
   let nodes = {};
   let nodeLabels = {};
@@ -132,6 +148,73 @@ const NeoMapChart = (props: ChartProps) => {
       });
     }
   }
+
+  const filterNodesWithinPolygonCoordinates = (
+    nodes: Node[]
+  ): Node[] => {
+    console.log('Filtering nodes now', nodes)
+
+    if (!props.filterPolygonCoordinates) {
+      console.log('No filter polygon coordinates found to filter with.');
+      return nodes
+    }
+
+    const possiblePointsToInclude = nodes.filter((node) => node.pos)
+    // Possibly due to the point grouping, there are some items without pos or with pos undefined.
+    const pointsIncludedAsCoordinates = possiblePointsToInclude.map((node) => [node.pos[0], node.pos[1]]);
+
+    console.log('Positions of points: ', possiblePointsToInclude);
+    console.log('Polygon-at-filter-time-coords:', props.filterPolygonCoordinates)
+
+    // Filter results of bounding box query to polygon bounds
+    const poisWithin = turf.pointsWithinPolygon(
+      turf.points(pointsIncludedAsCoordinates),
+      props.filterPolygonCoordinates,
+    );
+
+    console.log('Considering these returned points..', poisWithin.features.length, poisWithin);
+
+    const withinIndices = new Set<number>();
+    poisWithin.features.forEach((feature, index) => {
+
+        // If pointIndex isn't available, use the coordinates to find the matching node
+        const coords = feature.geometry.coordinates;
+        const matchingIndex = possiblePointsToInclude.findIndex(
+          point => point.pos && point.pos[0] === coords[0] && point.pos[1] === coords[1]
+        );
+        if (matchingIndex !== -1) {
+          withinIndices.add(matchingIndex);
+        }
+
+    });
+
+    const kept = possiblePointsToInclude.filter((_, index) => withinIndices.has(index));
+    const selectedIds = kept.map(node => {
+      if (typeof node.id === 'object' && node.id !== null) {
+        // Handle Neo4j Integer objects with high/low properties
+        console.log("THis node is: ", node)
+        return JSON.stringify(node.id.low);
+      }
+      return String(node.id.low);
+    }).join(',');
+
+    // Update dashboard parameter
+    if (props.setGlobalParameter) {
+      props.setGlobalParameter(selectedIdsParameterName, selectedIds);
+      console.log(`Updated ${selectedIdsParameterName} parameter:`, selectedIds);
+    }
+
+
+    return kept;
+  }
+
+  // If no polygon coordinates, reset the parameter to show all data
+  React.useEffect(() => {
+    if (!props.filterPolygonCoordinates && props.setGlobalParameter) {
+      resetSelectedIdsParameter();
+    }
+  }, [props.filterPolygonCoordinates]);
+
 
   // TODO this should be in Utils.ts
   function buildVisualizationDictionaryFromRecords(records) {
@@ -227,10 +310,11 @@ const NeoMapChart = (props: ChartProps) => {
       zoom: Math.min(latZoomFit, longZoomFit),
       centerLatitude: latitudes ? latitudes.reduce((a, b) => a + b, 0) / latitudes.length : 0,
       centerLongitude: longitudes ? longitudes.reduce((a, b) => a + b, 0) / longitudes.length : 0,
-      nodes: nodesList,
+      nodes: filterNodesWithinPolygonCoordinates(nodesList),
       links: linksList,
     });
   }
+
 
   // TODO this should definitely be refactored as an if/case statement.
   const markers = layerType == 'markers' ? createMarkers(data, props) : '';
@@ -252,6 +336,7 @@ const NeoMapChart = (props: ChartProps) => {
       <TileLayer attribution={attribution} url={mapProviderURL ? mapProviderURL : ''} />
       {markers}
       {lines}
+      {props.additionalRenderElement}
     </MapContainer>
   );
 };

@@ -23,6 +23,20 @@ export interface ChartProps {
   theme?: string; // Dashboard theme value.
 }
 
+type GeomanJsonPolygon = {
+  geometry: {
+    coordinates: number[][][]
+  }
+};
+
+// Used for: The polygon drawable JSX element modification to MapChart + Drawing arrows component for map.
+// As it is JSX, if you want multiple, wrap them in <JSX.element><ExtraComponent1 /><ExtraComponent2 /></JSX.element>
+export interface ChartPropsWithAdditionalElement extends ChartProps {
+  additionalRenderElement: JSX.Element
+  filterPolygonCoordinates: GeomanJsonPolygon | null
+  onResetParameterFunction?: (resetFn: () => void) => void // Optional callback to receive reset function
+}
+
 /**
  * A simplified schema of the Neo4j database.
  */

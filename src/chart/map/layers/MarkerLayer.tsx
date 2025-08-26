@@ -125,6 +125,9 @@ export function createMarkers(data, props) {
     return node.properties[selectedProp] ? node.properties[selectedProp].toString() : '';
   };
 
+  console.log('Data props: ', Object.keys(data) )
+  console.log('Data nodes: ', data.nodes)
+
   // Create markers to plot on the map
   let markers = data.nodes
     .filter((node) => node.pos && !isNaN(node.pos[0]) && !isNaN(node.pos[1]))
@@ -136,7 +139,7 @@ export function createMarkers(data, props) {
           <div
             style={{ color: node.color, textAlign: 'center', marginTop: markerMarginTop, marginLeft: markerMarginLeft }}
           >
-            <MapPinIconSolid className={markerIconClass} />
+            <i className={`fa fa-${node.properties.icon || 'location-dot'} ${markerIconClass}`} />
           </div>
         }
       >

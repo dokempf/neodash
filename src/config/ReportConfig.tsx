@@ -5,6 +5,8 @@ import NeoGraphChart from '../chart/graph/GraphChart';
 import NeoIFrameChart from '../chart/iframe/IFrameChart';
 import NeoJSONChart from '../chart/json/JSONChart';
 import NeoMapChart from '../chart/map/MapChart';
+import NeoMapChartPolygonDrawable from '../chart/map/MapChartPolygonDrawable';
+import NeoItineraryMapChart from '../chart/map/MapChartItinerary';
 import NeoPieChart from '../chart/pie/PieChart';
 import NeoTableChart from '../chart/table/TableChart';
 import NeoSingleValueChart from '../chart/single/SingleValueChart';
@@ -14,6 +16,8 @@ import { SELECTION_TYPES } from './CardConfig';
 import NeoLineChart from '../chart/line/LineChart';
 import NeoScatterPlot from '../chart/scatter/ScatterPlotChart';
 import { objMerge, objectMap } from '../utils/ObjectManipulation';
+import EasydbDetailView from '../chart/easydb/EasydbDetailView';
+import TimelineInput from "../chart/timelineinput/TimelineInput";
 
 // TODO: make the reportConfig a interface with not self-documented code
 // Use Neo4j 4.0 subqueries to limit the number of rows returned by overriding the query.
@@ -1150,6 +1154,215 @@ const _REPORT_TYPES = {
         type: SELECTION_TYPES.LIST,
         values: [true, false],
         default: true,
+      },
+    },
+  },
+  easydbdetail: {
+    label: "EasyDB Detail",
+    helperText: "This report will show the details of a single EasyDB record.",
+    component: EasydbDetailView,
+    maxRecords: 1,
+    settings: {},
+    allowScrolling: true,
+    settings: {
+      token: {
+        label: "EasyDB Access Token (private instance only)",
+        type: SELECTION_TYPES.TEXT,
+        default: ""
+      },
+      instance: {
+        label: "EasyDB Instance URL",
+        type: SELECTION_TYPES.TEXT,
+        default: "https://dmmp.ub.uni-heidelberg.de"
+      },
+      language: {
+        label: "Application Language",
+        type: SELECTION_TYPES.LIST,
+        values: ["en-US", "de-DE"],
+        default: "en-US"
+      }
+    }
+  },
+  polygonDrawableMap: {
+    label: 'Polygon Drawable Map',
+    helperText: 'A map which has spatial properties AND allows you to draw polygons to filter queries. Calls MapChart.',
+    selection: {
+      properties: {
+        label: 'Node Properties',
+        type: SELECTION_TYPES.NODE_PROPERTIES,
+      },
+    },
+    useNodePropsAsFields: true,
+    component: NeoMapChartPolygonDrawable,
+    maxRecords: 1000,
+    settings: {
+      layerType: {
+        label: 'Layer Type',
+        type: SELECTION_TYPES.LIST,
+        values: ['markers', 'heatmap'],
+        default: 'markers',
+      },
+      clusterMarkers: {
+        label: 'Cluster Markers',
+        type: SELECTION_TYPES.LIST,
+        values: [true, false],
+        default: false,
+      },
+      separateOverlappingMarkers: {
+        label: 'Seperate Overlapping Markers',
+        type: SELECTION_TYPES.LIST,
+        values: [true, false],
+        default: false,
+      },
+      nodeColorScheme: {
+        label: 'Node Color Scheme',
+        type: SELECTION_TYPES.LIST,
+        values: [
+          'neodash',
+          'nivo',
+          'category10',
+          'accent',
+          'dark2',
+          'paired',
+          'pastel1',
+          'pastel2',
+          'set1',
+          'set2',
+          'set3',
+        ],
+        default: 'neodash',
+      },
+      defaultNodeSize: {
+        label: 'Node Marker Size',
+        type: SELECTION_TYPES.LIST,
+        values: ['small', 'medium', 'large'],
+        default: 'large',
+      },
+      nodeColorProp: {
+        label: 'Node Color Property',
+        type: SELECTION_TYPES.TEXT,
+        default: 'color',
+      },
+      defaultRelColor: {
+        label: 'Relationship Color',
+        type: SELECTION_TYPES.TEXT,
+        default: '#a0a0a0',
+      },
+      defaultRelWidth: {
+        label: 'Relationship Width',
+        type: SELECTION_TYPES.NUMBER,
+        default: 1,
+      },
+      relColorProp: {
+        label: 'Relationship Color Property',
+        type: SELECTION_TYPES.TEXT,
+        default: 'color',
+      },
+      relWidthProp: {
+        label: 'Relationship Width Property',
+        type: SELECTION_TYPES.TEXT,
+        default: 'width',
+      },
+      providerUrl: {
+        label: 'Map Provider URL',
+        type: SELECTION_TYPES.TEXT,
+        default: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      },
+      intensityProp: {
+        label: 'Intensity Property (for heatmap)',
+        type: SELECTION_TYPES.TEXT,
+        default: 'intensity',
+      },
+      hideSelections: {
+        label: 'Hide Property Selection',
+        type: SELECTION_TYPES.LIST,
+        values: [true, false],
+        default: false,
+      },
+      selectedIdsParameterName: {
+        label: 'Dashboard Parameter Name for Selected IDs',
+        type: SELECTION_TYPES.TEXT,
+        default: 'IDS_SELECTED',
+      },
+    },
+  },
+  itinerary: {
+    label: 'Itinerary Map',
+    component: NeoItineraryMapChart,
+    helperText: (
+      <div>
+        An Itinerary Map displays travel routes and waypoints from GeoJSON FeatureCollections. 
+        Each person's journey is automatically colored uniquely. Expects records containing an 
+        <code>itinerary</code> field with GeoJSON structure including Point features (waypoints) 
+        and LineString features (routes).
+      </div>
+    ),
+    maxRecords: 100,
+    selection: {
+      // No specific field selection needed - processes entire records
+    },
+    settings: {
+      providerUrl: {
+        label: 'Map Provider URL',
+        type: SELECTION_TYPES.TEXT,
+        default: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      },
+      attribution: {
+        label: 'Map Attribution',
+        type: SELECTION_TYPES.TEXT,
+        default: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
+      },
+      routeWeight: {
+        label: 'Route Line Width',
+        type: SELECTION_TYPES.NUMBER,
+        default: 3,
+      },
+      showWaypoints: {
+        label: 'Show Waypoints',
+        type: SELECTION_TYPES.LIST,
+        values: [true, false],
+        default: true,
+      },
+      showRoutes: {
+        label: 'Show Route Lines',
+        type: SELECTION_TYPES.LIST,
+        values: [true, false],
+        default: true,
+      },
+    },
+  },
+  timeline: {
+    label: 'Timeline',
+    helperText: 'A draggable timeline component for selecting years. The selected year will be saved as a dashboard parameter.',
+    component: TimelineInput,
+    textOnly: true, // No query execution needed
+    disableDatabaseSelector: true,
+    maxRecords: 1,
+    settings: {
+      minimumYear: {
+        label: 'Minimum Year',
+        type: SELECTION_TYPES.NUMBER,
+        default: 1200,
+      },
+      maximumYear: {
+        label: 'Maximum Year',
+        type: SELECTION_TYPES.NUMBER,
+        default: 1900,
+      },
+      updateDashboardVariableID: {
+        label: 'Dashboard Parameter Name',
+        type: SELECTION_TYPES.TEXT,
+        default: 'selectedYear',
+      },
+      defaultValue: {
+        label: 'Default Year',
+        type: SELECTION_TYPES.NUMBER,
+        default: 1550,
+      },
+      timelineTitle: {
+        label: 'Timeline Title',
+        type: SELECTION_TYPES.TEXT,
+        default: 'Selected Year',
       },
     },
   },
